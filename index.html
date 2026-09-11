@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoboAlign-R1: Distilled Multimodal Reward Alignment for Robot Video World Models</title>
+  <meta name="description" content="RoboAlign-R1 aligns robot video world models with a distilled multimodal reward and stabilizes long-horizon rollouts via Sliding Window Re-encoding." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Academicons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/academicons@1.9.4/css/academicons.min.css" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- =================== NAVBAR =================== -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="#top" class="nav-brand">
+      <span class="brand-mark">R1</span>
+      <span class="brand-text">RoboAlign-R1</span>
+    </a>
+    <div class="nav-links">
+      <a href="#overview">Overview</a>
+      <a href="#motivation">Motivation</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#judge-demo">Judge&nbsp;Demo</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#bibtex">BibTeX</a>
+    </div>
+  </div>
+</nav>
+
+<!-- =================== HERO =================== -->
+<header id="top" class="hero">
+  <div class="hero-bg-grid"></div>
+  <div class="hero-bg-glow"></div>
+
+  <div class="hero-inner">
+    <h1 class="hero-title">
+      <span class="title-method">RoboAlign-R1</span>
+      <span class="title-sub">Distilled Multimodal Reward Alignment for<br/>Robot Video World Models</span>
+    </h1>
+
+    <div class="authors">
+      <span class="author-pill"><i class="fa-solid fa-user-secret"></i> Anonymous Authors</span>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div class="hero-buttons">
+      <a href="#" class="btn btn-dark" aria-label="Paper PDF">
+        <i class="fa-solid fa-file-pdf"></i><span>Paper</span>
+      </a>
+      <a href="#" class="btn btn-dark" aria-label="arXiv">
+        <i class="ai ai-arxiv"></i><span>arXiv</span>
+      </a>
+      <a href="#" class="btn btn-dark" aria-label="OpenReview">
+        <i class="ai ai-open-access"></i><span>OpenReview</span>
+      </a>
+      <a href="#" class="btn btn-dark" aria-label="Code">
+        <i class="fa-brands fa-github"></i><span>Code</span>
+      </a>
+      <a href="#" class="btn btn-dark" aria-label="Models & Datasets">
+        <i class="fa-solid fa-cube"></i><span>Models&nbsp;&amp;&nbsp;Data</span>
+      </a>
+      <a href="#bibtex" class="btn btn-outline" aria-label="BibTeX">
+        <i class="fa-solid fa-quote-right"></i><span>BibTeX</span>
+      </a>
+    </div>
+
+    <!-- Key-number badges -->
+    <div class="metrics-row">
+      <div class="metric-pill">
+        <div class="metric-value">+10.1<span class="unit">%</span></div>
+        <div class="metric-label">RoboAlign-Judge Score<br/>vs. strongest baseline</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-value">+2.8<span class="unit">%</span></div>
+        <div class="metric-label">SSIM<br/>long-horizon rollout</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-value">&minus;9.8<span class="unit">%</span></div>
+        <div class="metric-label">LPIPS<br/>w/ SWR at ~1% overhead</div>
+      </div>
+      <div class="metric-pill">
+        <div class="metric-value">10<span class="unit">&times;</span></div>
+        <div class="metric-label">Cheaper online reward<br/>via teacher&rarr;student</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- =================== OVERVIEW / TL;DR =================== -->
+<section id="overview" class="section section-light">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">TL;DR</div>
+      <h2>What is <span class="inline-method">RoboAlign-R1</span>?</h2>
+    </div>
+
+    <div class="tldr-box">
+      <p>
+        <strong>RoboAlign-R1</strong> is a unified framework for robot video world models that
+        replaces weak low-level RL rewards with a <em>distilled multimodal reward</em>, and
+        stabilizes long-horizon autoregressive generation with a <em>training-free</em>
+        Sliding Window Re-encoding (SWR) strategy.
+      </p>
+      <ul class="tldr-list">
+        <li><i class="fa-solid fa-database"></i><span><strong>RobotWorldBench</strong> &mdash; 10,000 annotated video&ndash;instruction pairs across 4 robot datasets, scored on 6 fine-grained dimensions.</span></li>
+        <li><i class="fa-solid fa-scale-balanced"></i><span><strong>RoboAlign-Judge</strong> (teacher) &mdash; a Qwen3-VL-8B-Thinking multimodal judge fine-tuned on RobotWorldBench.</span></li>
+        <li><i class="fa-solid fa-bolt"></i><span><strong>Student Reward</strong> &mdash; a 98M compact model distilled from the teacher, running at ~50 videos/s for online RL.</span></li>
+        <li><i class="fa-solid fa-arrows-rotate"></i><span><strong>Sliding Window Re-encoding</strong> &mdash; periodically re-encodes recent predictions into fresh context, bounding KV-cache at O(W).</span></li>
+      </ul>
+    </div>
+
+    <figure class="figure-block">
+      <img src="static/images/figure1.png" alt="Overview of RoboAlign-R1" loading="lazy"/>
+      <figcaption>
+        <strong>Figure 1. Overview of RoboAlign-R1.</strong> A robot-centric benchmark trains a
+        multimodal teacher judge, which is distilled into a lightweight student reward model for
+        efficient RL post-training. In parallel, Sliding Window Re-encoding stabilizes long-horizon
+        autoregressive rollouts during inference.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- =================== MOTIVATION =================== -->
+<section id="motivation" class="section section-muted">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Motivation</div>
+      <h2>Two pain points of robot video world models</h2>
+    </div>
+
+    <div class="two-col">
+      <div class="issue-card">
+        <div class="issue-num">01</div>
+        <h3>Reward misalignment</h3>
+        <p>
+          Existing world models are trained with reconstruction, MSE, LPIPS, or SSIM. These
+          low-level proxies do not reflect what actually matters for decision making&mdash;
+          instruction following, manipulation success, contact realism, and physics
+          adherence. Stronger multimodal judges exist but are too expensive to query online.
+        </p>
+      </div>
+      <div class="issue-card">
+        <div class="issue-num">02</div>
+        <h3>Long-horizon error accumulation</h3>
+        <p>
+          Token-based autoregressive world models condition each step on all predicted
+          tokens. Small per-step errors compound, causing textures to drift, contacts to
+          lose plausibility, and object identity to degrade as the rollout grows longer.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== METHOD =================== -->
+<section id="method" class="section section-light">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Method</div>
+      <h2>How <span class="inline-method">RoboAlign-R1</span> works</h2>
+      <p class="section-lead">
+        A tokenize&ndash;predict&ndash;decode world model is post-trained with a distilled
+        multimodal reward via GRPO, then decoded with Sliding Window Re-encoding.
+      </p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab-buttons" role="tablist">
+        <button class="tab-btn active" data-tab="tab-bench" role="tab">
+          <i class="fa-solid fa-database"></i> RobotWorldBench
+        </button>
+        <button class="tab-btn" data-tab="tab-judge" role="tab">
+          <i class="fa-solid fa-scale-balanced"></i> Judge &amp; Student Reward
+        </button>
+        <button class="tab-btn" data-tab="tab-grpo" role="tab">
+          <i class="fa-solid fa-sitemap"></i> GRPO Post-training
+        </button>
+        <button class="tab-btn" data-tab="tab-swr" role="tab">
+          <i class="fa-solid fa-arrows-rotate"></i> Sliding Window Re-encoding
+        </button>
+      </div>
+
+      <div class="tab-panels">
+        <!-- Tab 1 -->
+        <div class="tab-panel active" id="tab-bench" role="tabpanel">
+          <div class="two-col-asym">
+            <div>
+              <h3>RobotWorldBench</h3>
+              <p>
+                We collect candidate videos from four robot data sources and combine two
+                annotation sources: (i) <em>rule-based degradations</em> of ground-truth
+                episodes and (ii) <em>generated rollouts</em> from open-source image-to-video
+                and world-model baselines.
+              </p>
+              <p>
+                From this pool we curate <strong>10,000</strong> annotated
+                video&ndash;instruction pairs, each labelled with a raw score vector
+                <code>r = (r<sub>1</sub>, &hellip;, r<sub>6</sub>)</code> over six
+                dimensions with rubric ranges <code>[3,2,1,1,1,2]</code>:
+              </p>
+              <div class="dim-grid">
+                <div class="dim-chip"><span>1</span>Instruction Following</div>
+                <div class="dim-chip"><span>2</span>Manipulation Success</div>
+                <div class="dim-chip"><span>3</span>Action&ndash;Outcome Consistency</div>
+                <div class="dim-chip"><span>4</span>Temporal Consistency</div>
+                <div class="dim-chip"><span>5</span>Contact Realism</div>
+                <div class="dim-chip"><span>6</span>Physics Adherence</div>
+              </div>
+            </div>
+            <figure>
+              <img src="static/images/fig_data_distribution.png" alt="RobotWorldBench data distribution" loading="lazy"/>
+              <figcaption>Data distribution of <strong>RobotWorldBench</strong> across sources, instructions, and degradation types.</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <!-- Tab 2 -->
+        <div class="tab-panel" id="tab-judge" role="tabpanel">
+          <div class="two-col-asym">
+            <div>
+              <h3>Teacher-to-Student Reward Distillation</h3>
+              <p>
+                The <strong>RoboAlign-Judge</strong> teacher (Qwen3-VL-8B-Thinking,
+                fine-tuned on RobotWorldBench) outputs structured six-dimensional scores,
+                but is too expensive to call inside an RL loop.
+              </p>
+              <p>
+                We distill the teacher into a lightweight <strong>student</strong>
+                &mdash; a compact visual&ndash;text encoder with a linear scoring head,
+                ~98M parameters, running at <strong>~50&nbsp;videos/s</strong>.
+                A dimension-weighted Huber regression matches the teacher&apos;s
+                normalized scores, yielding a <strong>10&times;</strong> cheaper online reward.
+              </p>
+              <div class="callout">
+                <i class="fa-solid fa-lightbulb"></i>
+                <span>
+                  <strong>Online iterative distillation.</strong> Every <em>K</em> policy
+                  updates, fresh rollouts from the current world model are scored by
+                  the teacher and added to the distillation set &mdash; countering reward
+                  hacking from distribution shift.
+                </span>
+              </div>
+            </div>
+            <figure>
+              <img src="static/images/student.png" alt="Student reward model architecture" loading="lazy"/>
+              <figcaption>Architecture of the distilled <strong>student reward model</strong>.</figcaption>
+            </figure>
+          </div>
+
+          <figure class="figure-block thin">
+            <img src="static/images/fig_judge_radar_comparison.png" alt="Judge radar comparison" loading="lazy"/>
+            <figcaption><strong>RoboAlign-Judge</strong> vs. off-the-shelf VLM judges on six dimensions.</figcaption>
+          </figure>
+        </div>
+
+        <!-- Tab 3 -->
+        <div class="tab-panel" id="tab-grpo" role="tabpanel">
+          <div class="two-col-asym flip">
+            <figure>
+              <img src="static/images/model.png" alt="Token-based world model" loading="lazy"/>
+              <figcaption>
+                <strong>Token-based robot video world model.</strong> Dual-branch FSQ tokenizer +
+                12-layer LLaMA Transformer; post-trained with GRPO under the distilled multimodal reward.
+              </figcaption>
+            </figure>
+            <div>
+              <h3>GRPO with a Distilled Multimodal Reward</h3>
+              <p>
+                A dual-branch FSQ tokenizer encodes context and dynamics tokens; action tokens
+                are interleaved to form a unified sequence modelled by a 12-layer causal
+                Transformer. We pre-train with next-token prediction on dynamics tokens only.
+              </p>
+              <p>
+                During RL post-training, a group of <em>G</em> rollouts is sampled, each scored
+                by the student reward. Group-normalized advantages feed a clipped
+                GRPO objective with a KL penalty to the SFT reference:
+              </p>
+              <pre class="eq">L_GRPO = &minus; E[ min( &rho; &middot; A, clip(&rho;, 1&plusmn;&epsilon;) &middot; A ) ] + &beta; &middot; KL(&pi;&thinsp;||&thinsp;&pi;<sub>0</sub>)</pre>
+              <p class="muted">
+                Composite reward: <code>R = &Sigma;<sub>k</sub> w<sub>k</sub> &middot; g<sub>&psi;</sub>(l, &xcirc;)<sub>k</sub></code>, summing the six student-predicted dimensions.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4 -->
+        <div class="tab-panel" id="tab-swr" role="tabpanel">
+          <div class="two-col-asym">
+            <div>
+              <h3>Sliding Window Re-encoding (SWR)</h3>
+              <p>
+                Inspired by StreamingLLM&apos;s attention-sink mechanism, SWR partitions a
+                <em>T</em>-frame rollout into <em>K=&lceil;T/W&rceil;</em> segments. At each
+                segment boundary, the last predicted frame is <strong>decoded to pixels</strong>
+                and then <strong>re-encoded</strong> as fresh context tokens, resetting the
+                autoregressive prompt.
+              </p>
+              <p>
+                This training-free decode&ndash;re-encode cycle truncates token-level drift
+                across segments while keeping the active KV-cache bounded by <code>O(W)</code>.
+              </p>
+              <div class="callout">
+                <i class="fa-solid fa-square-root-variable"></i>
+                <span>
+                  <strong>Stability bound.</strong>
+                  <code>E<sub>SWR</sub>(T) &le; W&epsilon; + (W&epsilon; + &delta;)/(1&minus;&alpha;<sup>W</sup>)</code>
+                  &mdash; independent of the total horizon <em>T</em>, vs. <code>O(T&epsilon;)</code>
+                  for vanilla autoregressive rollouts.
+                </span>
+              </div>
+            </div>
+            <figure>
+              <img src="static/images/inference.png" alt="Sliding Window Re-encoding schematic" loading="lazy"/>
+              <figcaption>
+                <strong>SWR</strong>: analogy to StreamingLLM (top) and our periodic
+                pixel-space refresh (bottom); technical details of one refresh step on the right.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== RESULTS =================== -->
+<section id="results" class="section section-muted">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Results</div>
+      <h2>Quantitative &amp; Qualitative Evaluation</h2>
+      <p class="section-lead">
+        RoboAlign-R1 leads across all six judged dimensions on <strong>RobotWorldBench</strong>
+        and wins on pixel-level metrics on both <strong>RT-1</strong> and <strong>BridgeData V2</strong>.
+      </p>
+    </div>
+
+    <!-- RQ1 main table -->
+    <h3 class="rq-title">RQ1 &middot; Main results on RobotWorldBench</h3>
+    <div class="table-wrap">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th rowspan="2">Method</th>
+            <th colspan="3">Task Alignment</th>
+            <th colspan="3">Physical Realism</th>
+            <th rowspan="2">Total &uarr;</th>
+          </tr>
+          <tr>
+            <th>Instr. &uarr;</th><th>Manip. &uarr;</th><th>Act.-Out. &uarr;</th>
+            <th>Temp. &uarr;</th><th>Contact &uarr;</th><th>Phys. &uarr;</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-real"><td><em>Real videos</em></td><td>3.00</td><td>2.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>2.00</td><td>10.00</td></tr>
+
+          <tr class="row-group"><td colspan="8">Closed video models</td></tr>
+          <tr><td>Kling&nbsp;2.6</td><td>2.42</td><td>1.38</td><td>0.46</td><td>0.58</td><td>0.82</td><td>1.18</td><td>6.84</td></tr>
+          <tr><td>Runway&nbsp;Gen-4.5</td><td>2.34</td><td>1.29</td><td>0.43</td><td>0.55</td><td>0.79</td><td>1.12</td><td>6.52</td></tr>
+          <tr><td>MiniMax&nbsp;Hailuo&nbsp;02</td><td>2.18</td><td>1.17</td><td>0.38</td><td>0.47</td><td>0.71</td><td>1.01</td><td>5.92</td></tr>
+          <tr><td>Luma&nbsp;Dream&nbsp;Machine</td><td>2.03</td><td>1.08</td><td>0.35</td><td>0.44</td><td>0.69</td><td>0.92</td><td>5.51</td></tr>
+
+          <tr class="row-group"><td colspan="8">Open video models</td></tr>
+          <tr><td>HunyuanVideo-I2V</td><td>1.20</td><td>0.40</td><td>0.24</td><td>0.56</td><td>0.96</td><td>1.56</td><td>4.92</td></tr>
+          <tr><td>LTX-Video</td><td>2.28</td><td>1.32</td><td>0.52</td><td>0.26</td><td>0.28</td><td>1.00</td><td>5.66</td></tr>
+          <tr><td>Stable&nbsp;Video&nbsp;Diffusion&nbsp;XT</td><td>1.84</td><td>0.98</td><td>0.46</td><td>0.06</td><td>0.36</td><td>0.58</td><td>4.28</td></tr>
+          <tr><td>Mochi-1</td><td>1.83</td><td>0.91</td><td>0.31</td><td>0.39</td><td>0.61</td><td>0.82</td><td>4.87</td></tr>
+          <tr><td>CogVideoX-I2V</td><td>1.94</td><td>1.00</td><td>0.40</td><td>0.42</td><td>0.92</td><td>1.24</td><td>5.92</td></tr>
+          <tr><td>OpenSora-I2V</td><td>1.58</td><td>0.82</td><td>0.27</td><td>0.31</td><td>0.53</td><td>0.71</td><td>4.22</td></tr>
+          <tr><td>OpenSora-Plan-I2V</td><td>1.79</td><td>0.89</td><td>0.30</td><td>0.37</td><td>0.60</td><td>0.81</td><td>4.76</td></tr>
+          <tr><td>I2VGen-XL</td><td>1.56</td><td>0.66</td><td>0.32</td><td>0.00</td><td>0.44</td><td>0.56</td><td>3.54</td></tr>
+
+          <tr class="row-group"><td colspan="8">Embodied / interactive world-model baselines</td></tr>
+          <tr><td>RLVR-World</td><td>2.29</td><td>1.31</td><td>0.44</td><td>0.43</td><td>0.84</td><td>1.19</td><td>6.54</td></tr>
+          <tr class="row-runnerup"><td>iVideoGPT</td><td>2.60</td><td>1.60</td><td>0.70</td><td>0.74</td><td>0.56</td><td>1.54</td><td>7.74</td></tr>
+          <tr><td>RoboDreamer</td><td>2.02</td><td>1.02</td><td>0.34</td><td>0.32</td><td>0.04</td><td>0.70</td><td>4.44</td></tr>
+          <tr><td>Vid2World</td><td>2.18</td><td>1.08</td><td>0.40</td><td>0.22</td><td>0.98</td><td>1.04</td><td>5.90</td></tr>
+          <tr><td>Wan2.2-TI2V-5B&nbsp;(LoRA)</td><td>2.40</td><td>1.02</td><td>0.41</td><td>0.24</td><td>0.98</td><td>0.96</td><td>6.01</td></tr>
+
+          <tr class="row-ours">
+            <td><strong>RoboAlign-R1 (ours)</strong></td>
+            <td><strong>2.72</strong></td><td><strong>1.72</strong></td><td><strong>0.72</strong></td>
+            <td><strong>0.78</strong></td><td><strong>1.00</strong></td><td><strong>1.58</strong></td>
+            <td><strong>8.52</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RQ2 ablation -->
+    <h3 class="rq-title">RQ2 &middot; Distilled reward vs. low-level RL rewards</h3>
+    <figure class="figure-block">
+      <img src="static/images/rq2_reward_ablation_combined.png" alt="RQ2 reward ablation" loading="lazy"/>
+      <figcaption>
+        Distilled student reward delivers the strongest judge-aligned improvement across
+        semantic and physical dimensions (a), and the best full-rollout low-level metrics on
+        RT-1 and BridgeData V2 (b&ndash;e). &nbsp;
+        <strong>+33.8%</strong> aggregate over the best single-metric reward (LPIPS).
+      </figcaption>
+    </figure>
+
+    <!-- RQ3 SWR -->
+    <h3 class="rq-title">RQ3 &middot; Sliding Window Re-encoding (W=6)</h3>
+    <div class="two-col-asym">
+      <div class="swr-stats">
+        <table class="result-table compact">
+          <thead>
+            <tr><th>Metric</th><th>Default&nbsp;AR</th><th>SWR&nbsp;(W=6)</th><th>&Delta;</th></tr>
+          </thead>
+          <tbody>
+            <tr class="subhead"><td colspan="4"><em>Quality</em></td></tr>
+            <tr><td>SSIM &uarr;</td><td>0.7526</td><td>0.7735</td><td class="pos">+2.8%</td></tr>
+            <tr><td>PSNR&nbsp;(dB) &uarr;</td><td>20.49</td><td>21.11</td><td class="pos">+0.62&nbsp;dB</td></tr>
+            <tr><td>LPIPS &darr;</td><td>0.2078</td><td>0.1875</td><td class="pos">&minus;9.8%</td></tr>
+            <tr><td>ROI-LPIPS &darr;</td><td>&mdash;</td><td>&mdash;</td><td class="pos">&minus;12.2%</td></tr>
+            <tr class="subhead"><td colspan="4"><em>Efficiency</em></td></tr>
+            <tr><td>Total&nbsp;time&nbsp;(s)</td><td>5.646</td><td>5.709</td><td>+1.1%</td></tr>
+            <tr><td>Throughput&nbsp;(FPS)</td><td>5.31</td><td>5.26</td><td>&minus;0.9%</td></tr>
+            <tr><td>Peak seq. length</td><td>1&times;</td><td>0.45&times;</td><td class="pos">&minus;54.8%</td></tr>
+            <tr><td>Peak memory</td><td>1&times;</td><td>0.96&times;</td><td class="pos">&minus;4.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure>
+        <img src="static/images/rq3_case.png" alt="RQ3 SWR case" loading="lazy"/>
+        <figcaption>SWR maintains a near-flat per-frame latency profile while AR shows a <strong>+6.8%</strong> latency drift by frame 29, alongside clearly more stable long-horizon generations.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- =================== JUDGE LIVE DEMO =================== -->
+<section id="judge-demo" class="section section-muted">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Interactive</div>
+      <h2><span class="inline-method">RoboAlign-Judge</span> &mdash; Live Inference Demo</h2>
+      <p class="section-lead">
+        Watch <strong>RoboAlign-Judge</strong> (Qwen3-VL-8B-Thinking fine-tuned on RobotWorldBench)
+        evaluate a generated rollout end-to-end: it reads the instruction and the initial frame,
+        watches the generated video, then emits a six-dimensional rubric score with a written rationale.
+      </p>
+    </div>
+
+    <!-- Case tabs -->
+    <div class="judge-case-tabs" role="tablist">
+      <button class="judge-case-tab active" data-case="caseA" role="tab">
+        <i class="fa-solid fa-box-archive"></i>
+        <span>Case&nbsp;A</span>
+        <em>"pick orange can from bottom drawer &hellip;"</em>
+      </button>
+      <button class="judge-case-tab" data-case="caseB" role="tab">
+        <i class="fa-solid fa-bottle-water"></i>
+        <span>Case&nbsp;B</span>
+        <em>"move water bottle near rxbar blueberry"</em>
+      </button>
+    </div>
+
+    <!-- Instruction banner -->
+    <div class="judge-banner">
+      <div class="judge-banner-row">
+        <span class="judge-banner-label">Instruction</span>
+        <span class="judge-banner-text" id="judgeInstruction">&mdash;</span>
+      </div>
+    </div>
+
+    <div class="judge-stage">
+      <!-- LEFT: input frame + model rollouts as selector -->
+      <aside class="judge-input">
+        <div class="judge-input-head">
+          <i class="fa-solid fa-image"></i>
+          <span>Initial Frame</span>
+        </div>
+        <div class="judge-initial">
+          <img id="judgeInitial" src="" alt="Initial frame"/>
+        </div>
+
+        <div class="judge-model-switch" role="tablist" id="judgeModelSwitch">
+          <!-- filled by main.js -->
+        </div>
+
+        <div class="judge-video-box">
+          <div class="judge-video-head">
+            <i class="fa-solid fa-play-circle"></i>
+            <span>Generated Rollout</span>
+          </div>
+          <video id="judgeVideo" autoplay loop muted playsinline preload="auto"></video>
+          <div class="judge-video-caption" id="judgeVideoCaption">&mdash;</div>
+        </div>
+      </aside>
+
+      <!-- MIDDLE: reasoning stream -->
+      <div class="judge-reasoning">
+        <div class="judge-reason-head">
+          <div class="judge-reason-title">
+            <i class="fa-solid fa-comment-dots"></i>
+            <span>RoboAlign-Judge &mdash; chain-of-thought</span>
+          </div>
+          <div class="judge-reason-controls">
+            <button class="judge-btn" id="judgeReplay">
+              <i class="fa-solid fa-rotate-right"></i> Replay
+            </button>
+            <button class="judge-btn judge-btn-ghost" id="judgeSkip">
+              <i class="fa-solid fa-forward"></i> Skip
+            </button>
+          </div>
+        </div>
+        <div class="judge-reason-body">
+          <pre id="judgeReasoning" class="judge-reason-text"></pre>
+          <span class="judge-cursor" id="judgeCursor">▍</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: scores panel -->
+      <aside class="judge-scores">
+        <div class="judge-scores-head">
+          <i class="fa-solid fa-chart-column"></i>
+          <span>Six-dimensional Score</span>
+          <em>5-run mean &plusmn; std</em>
+        </div>
+        <div class="judge-dim-list" id="judgeDimList"></div>
+        <div class="judge-total" id="judgeTotal">
+          <div class="judge-total-label">Total</div>
+          <div class="judge-total-value">
+            <span id="judgeTotalVal">&mdash;</span>
+            <span class="judge-total-unit">/ 10</span>
+          </div>
+          <div class="judge-total-std" id="judgeTotalStd">&mdash;</div>
+        </div>
+      </aside>
+    </div>
+
+    <p class="judge-note">
+      <i class="fa-solid fa-circle-info"></i>
+      The chain-of-thought above is streamed from the <strong>actual model output</strong>
+      (saved from Qwen3-VL-8B-Thinking + LoRA). Scores are aggregated over 5 independent
+      sampling runs (temperature&nbsp;0.6).
+    </p>
+  </div>
+</section>
+
+<!-- =================== GALLERY =================== -->
+<section id="gallery" class="section section-light">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">Qualitative</div>
+      <h2>Gallery</h2>
+      <p class="section-lead">
+        Representative rollouts on RT-1 and BridgeData V2, and long-horizon SWR case studies.
+      </p>
+    </div>
+
+    <figure class="figure-block">
+      <img src="static/images/case.png" alt="Representative manipulation case" loading="lazy"/>
+      <figcaption>
+        <strong>Case 1.</strong> A representative manipulation case: RoboAlign-R1 produces
+        physically coherent sequences with accurate grasping and stable contact geometry.
+      </figcaption>
+    </figure>
+
+    <figure class="figure-block">
+      <img src="static/images/case_rt_bridge.png" alt="RT-1 and BridgeData V2 cases" loading="lazy"/>
+      <figcaption>
+        <strong>Case 2.</strong> Across RT-1 and BridgeData V2, RoboAlign-R1 preserves texture,
+        shadows, and background stability, consistent with the quantitative gains.
+      </figcaption>
+    </figure>
+
+    <!-- ===== SWR Live (animated) comparison ===== -->
+    <h3 class="rq-title">Sliding Window Re-encoding &mdash; Live Rollout Comparison</h3>
+    <p class="swr-live-lead">
+      Each animation below shows a long-horizon rollout from one of our two benchmarks,
+      with three strategies placed left-to-right for frame-aligned comparison:
+    </p>
+
+    <div class="swr-live">
+      <!-- Legend -->
+      <div class="swr-legend" aria-hidden="true">
+        <div class="legend-item"><span class="legend-dot legend-gt"></span><span><strong>Ground Truth</strong> &mdash; real robot video</span></div>
+        <div class="legend-item"><span class="legend-dot legend-ar"></span><span><strong>Default AR</strong> &mdash; vanilla autoregressive decoding (baseline)</span></div>
+        <div class="legend-item"><span class="legend-dot legend-swr"></span><span><strong>SWR (ours)</strong> &mdash; periodic context refresh, W=6</span></div>
+      </div>
+
+      <!-- Dataset selector -->
+      <div class="swr-dataset-tabs" role="tablist" aria-label="Dataset">
+        <button class="swr-dataset-tab active" data-dataset="rt1" role="tab">
+          <i class="fa-solid fa-robot"></i> RT-1
+        </button>
+        <button class="swr-dataset-tab" data-dataset="bridge" role="tab">
+          <i class="fa-solid fa-bridge"></i> BridgeData&nbsp;V2
+        </button>
+      </div>
+
+      <!-- Episode selector tabs (populated by JS based on dataset) -->
+      <div class="swr-tabs" role="tablist" id="swrEpisodeTabs">
+        <!-- filled by main.js -->
+      </div>
+
+      <!-- Animated viewer (horizontal 3-column layout: GT | AR | SWR) -->
+      <div class="swr-viewer">
+        <!-- Column labels overlay on top -->
+        <div class="swr-col-labels" aria-hidden="true">
+          <div class="swr-col-label swr-col-gt">Ground Truth</div>
+          <div class="swr-col-label swr-col-ar">Default AR</div>
+          <div class="swr-col-label swr-col-swr">SWR (ours)</div>
+        </div>
+
+        <!-- Loading overlay -->
+        <div class="swr-loading" id="swrLoading">
+          <div class="spinner"></div>
+          <span>Loading animation&hellip;</span>
+        </div>
+
+        <video id="swrVideo"
+               autoplay loop muted playsinline preload="auto"
+               aria-label="SWR vs AR vs GT — RT-1 Episode 1">
+          <source src="static/videos/swr_compare_eps1.mp4" type="video/mp4"/>
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      <p class="swr-caption">
+        <i class="fa-solid fa-eye"></i>
+        Observe how the <strong>middle column (Default AR)</strong> progressively loses
+        texture sharpness, object identity, and contact geometry as the horizon grows,
+        while the <strong>right column (SWR)</strong> stays close to the <strong>left column (GT)</strong>
+        thanks to periodic context refresh.
+      </p>
+    </div>
+
+    <!-- ===== SWR static long-horizon cases ===== -->
+    <h3 class="rq-title">More Long-horizon SWR Cases (static)</h3>
+    <div class="swr-grid">
+      <figure><img src="static/images/swr_case_1.png" alt="SWR case 1" loading="lazy"/><figcaption>SWR Case 1</figcaption></figure>
+      <figure><img src="static/images/swr_case_2.png" alt="SWR case 2" loading="lazy"/><figcaption>SWR Case 2</figcaption></figure>
+      <figure><img src="static/images/swr_case_3.png" alt="SWR case 3" loading="lazy"/><figcaption>SWR Case 3</figcaption></figure>
+      <figure><img src="static/images/swr_case_4.png" alt="SWR case 4" loading="lazy"/><figcaption>SWR Case 4</figcaption></figure>
+    </div>
+
+    <figure class="figure-block">
+      <img src="static/images/fig_case_study_qualitative.png" alt="Judge case study qualitative" loading="lazy"/>
+      <figcaption>
+        <strong>RoboAlign-Judge</strong> case study: fine-grained per-dimension scores
+        correlate well with human perception of failure modes.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- =================== BIBTEX =================== -->
+<section id="bibtex" class="section section-dark">
+  <div class="container">
+    <div class="section-head light">
+      <div class="eyebrow">Cite</div>
+      <h2>BibTeX</h2>
+    </div>
+
+    <div class="bibtex-box">
+      <button class="copy-btn" id="copyBibBtn" aria-label="Copy BibTeX">
+        <i class="fa-regular fa-copy"></i> <span>Copy</span>
+      </button>
+<pre id="bibtex-content">@misc{anonymous2026roboalignr1,
+  title  = {RoboAlign-R1: Distilled Multimodal Reward Alignment for Robot Video World Models},
+  author = {Anonymous Authors},
+  year   = {2026}
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- =================== FOOTER =================== -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-note">
+      <p>This page describes an <strong>anonymous submission</strong>. Author identities, affiliations, and resource links are omitted.</p>
+      <p class="muted small">Template inspired by modern academic project pages. Figures &copy; the authors.</p>
+    </div>
+    <div class="footer-links">
+      <a href="#top"><i class="fa-solid fa-arrow-up"></i> Back to top</a>
+    </div>
+  </div>
+</footer>
+
+<script src="judge_data.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
